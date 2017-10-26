@@ -1,0 +1,38 @@
+---
+title: "Data Science Capstone Milestone Report"
+author: "Jan Koscialkowski"
+date: "26 October 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r packages}
+library(tm)
+library(RWeka)
+library(wordcloud)
+```
+
+# 1 Introduction
+
+The goal of the project is to create a Shiny application predicting the next word in a sequence input by the user. It makes use of the HC Corpora, comprising texts coming from Twitter, blogs and news, in four languages: English, German, Finnish and Russian. The model created will be English-only, but it is important to note that having constructed a viable model for language, introducing another one would require only a limited amount of work.
+
+The main idea is to extract *n-grams* from the text (tokenize it into *n-grams*). An *n-gram* is a sequence of *n* adjacent words extracted from a text. Hence, *unigram* will mean a single word, *bigram* a two-word combination, *trigram* a three-word combination, etc.
+
+The project utilises mainly `tm` package for text manipulation, `RWeka` for tokenization and modelling and `wordcloud` for *n-gram* visualisation.
+
+All the code chunks were left for reproducibility.
+
+## 2 Data exploration
+I begin by reading the data
+
+```{r reading}
+
+```
+
+## 3 Data cleaning
+
+## 3 Tokenization
+As tokenizing text into *n-grams* is computationally intensive, only a sample was taken from each file.

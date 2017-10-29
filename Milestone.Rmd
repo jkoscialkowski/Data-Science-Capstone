@@ -2,37 +2,218 @@
 title: "Data Science Capstone Milestone Report"
 author: "Jan Koscialkowski"
 date: "26 October 2017"
-output: html_document
+output: 
+    html_document:
+        self_contained: no
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r packages}
-library(tm)
+```{r packages, warning=FALSE, message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(knitr)
 library(RWeka)
+library(stringi)
+library(tm)
 library(wordcloud)
 ```
 
 # 1 Introduction
 
-The goal of the project is to create a Shiny application predicting the next word in a sequence input by the user. It makes use of the HC Corpora, comprising texts coming from Twitter, blogs and news, in four languages: English, German, Finnish and Russian. The model created will be English-only, but it is important to note that having constructed a viable model for language, introducing another one would require only a limited amount of work.
+The goal of the project is to create a Shiny application predicting the next word in a sequence input by the user. It makes use of the HC Corpora, comprising texts coming from Twitter, blogs and news, in four languages: English, German, Finnish and Russian. The model created will be English-only, but it is important to note that having constructed a viable model for one language, introducing another one would require only a limited amount of work.
 
 The main idea is to extract *n-grams* from the text (tokenize it into *n-grams*). An *n-gram* is a sequence of *n* adjacent words extracted from a text. Hence, *unigram* will mean a single word, *bigram* a two-word combination, *trigram* a three-word combination, etc.
 
-The project utilises mainly `tm` package for text manipulation, `RWeka` for tokenization and modelling and `wordcloud` for *n-gram* visualisation.
+The project utilises mainly `tm` package for text manipulation, `stringi` for exploration, `RWeka` for tokenization and modelling and `wordcloud` and `ggplot2` for *n-gram* visualisation.
 
-All the code chunks were left for reproducibility.
+All the code chunks were left for reproducibility, so that both a technical and a non-technical person will be able to extract relevant information from this report.
 
-## 2 Data exploration
-I begin by reading the data
+## 2 Data Exploration
+I begin by reading the data.
 
-```{r reading}
+```{r reading, cache = TRUE}
+blogsCon <- file("en_US.blogs.txt", open = "rb")
+blogs <- readLines(blogsCon, encoding = "UTF-8", skipNul = TRUE)
 
+newsCon <- file("en_US.news.txt", open = "rb")
+news <- readLines(newsCon, encoding = "UTF-8", skipNul = TRUE)
+
+twitterCon <- file("en_US.twitter.txt", open = "rb")
+twitter <- readLines(twitterCon, encoding = "UTF-8", skipNul = TRUE)
 ```
 
-## 3 Data cleaning
+The code below generates a table with several summary statistics of the three text files.
 
-## 3 Tokenization
-As tokenizing text into *n-grams* is computationally intensive, only a sample was taken from each file.
+```{r exploration}
+bfs <- file.size("en_US.blogs.txt")/1024^2
+nfs <- file.size("en_US.news.txt")/1024^2
+tfs <- file.size("en_US.twitter.txt")/1024^2
+
+bnl <- length(blogs)
+nnl <- length(news)
+tnl <- length(twitter)
+
+bwc <- sum(stri_count_words(blogs))
+nwc <- sum(stri_count_words(news))
+twc <- sum(stri_count_words(twitter))
+
+tbl <- data.frame(c("Blogs", "News", "Twitter"), 
+                  c(bfs, nfs, tfs),
+                  c(bnl, nnl, tnl),
+                  c(bwc, nwc, twc))
+
+colnames(tbl) <- c("File", "File size in MB", "Number of lines", "Number of words")
+
+kable(tbl)
+```
+
+
+
+## 3 Data Cleaning
+The profanity list comes from [Luis von Ahn's webpage](http://www.cs.cmu.edu/~biglou/resources/bad-words.txt). All three files were cleaned outside this markdown file, using a `clean` function which I wrote myself. It is stored in a file `clean.R` available in a GitHub [repository](https://github.com/jkoscialkowski/Data-Science-Capstone) dedicated to this project. The function proceeds as follows.
+
+1. Read file.
+2. Change all UTF-8 artefactual characters to regular ASCII apostrophes.
+3. Remove stopwords (e.g. to, a, the, etc.), numbers and enforce lowercase.
+4. Substitute specific characters for contractions with apostrophes.
+5. Remove other punctuation, profanity and URLs.
+6. Restore apostrophe contractions.
+7. Remove residual 1-character words.
+8. Remove whitespaces.
+9. Save the resulting corpus in an `.RData` file.
+
+The file will be worked on in the future, e.g. to split the corpora into sentences.
+
+## 4 Tokenization
+As tokenizing text into *n-grams* is computationally intensive, only a sample was taken from each file (the same percentage of lines for each file). As the final model will not differentiate between the text sources, the three samples were merged.
+
+```{r sampling}
+rm(list = c("blogs, news, twitter, blogsCon, newsCon, twitterCon"))
+set.seed(1994)
+
+blogsSample <- load("en_US.blogs_refined.RData")
+blogsSample <- textCorpus
+newsSample <- load("en_US.news_refined.RData")
+newsSample <- textCorpus
+twitterSample <- load("en_US.twitter_refined.RData")
+twitterSample <- textCorpus
+
+sample <- Corpus(VectorSource(c(blogsSample$content[sample(bnl,floor(bnl/200))],
+                                newsSample$content[sample(nnl,floor(nnl/200))],
+                                twitterSample$content[sample(tnl,floor(tnl/200))])))
+```
+
+Having obtained the sample, tokenization can be performed. It was done for *n-grams* with *n* = 1,2,3, along with presenting the results with wordclouds and barplots, the latter for a more quantitative insight.
+
+```{r palette}
+pal = brewer.pal(8,"Purples")
+pal = pal[-c(1:3)]
+```
+
+### Unigrams
+```{r unigram, cache=TRUE, warning=FALSE}
+unigram <- NGramTokenizer(sample, Weka_control(min = 1, max = 1, delimiters = " \\r\\n\\t.,;:\"()?!"))
+unigram <- data.frame(table(unigram))
+unigram <- unigram %>% arrange(desc(Freq))
+names(unigram) <- c("word1", "frequency")
+head(unigram)
+unigram$word1 <- as.character(unigram$word1)
+
+## Plotting
+
+wordcloud(unigram$word1, unigram$frequency, max.words = 100, random.order = FALSE, colors = pal)
+
+ggplot(head(unigram,15), aes(reorder(word1,frequency), frequency)) +
+  geom_bar(stat = "identity") + coord_flip() +
+  xlab("Unigrams") + ylab("Frequency") +
+  ggtitle("Most frequent unigrams (i.e. words)")
+
+## Saving
+save(unigram, file = "unigram.RData")
+```
+
+### Bigrams
+```{r bigram, cache=TRUE, warning=FALSE}
+bigram <- NGramTokenizer(sample, Weka_control(min = 2, max = 2, delimiters = " \\r\\n\\t.,;:\"()?!"))
+bigram <- data.frame(table(bigram))
+bigram <- bigram %>% arrange(desc(Freq))
+names(bigram) <- c("words","frequency")
+head(bigram)
+bigram$words <- as.character(bigram$words)
+
+# Plotting
+
+wordcloud(bigram$words, bigram$frequency, max.words = 100, random.order = FALSE, colors = pal)
+
+ggplot(head(bigram,15), aes(reorder(words,frequency), frequency)) +
+  geom_bar(stat = "identity") + coord_flip() +
+  xlab("Bigrams") + ylab("Frequency") +
+  ggtitle("Most frequent bigrams")
+
+str2 <- strsplit(bigram$words,split=" ")
+bigram <- transform(bigram, 
+                    one = sapply(str2,"[[",1),   
+                    two = sapply(str2,"[[",2))
+bigram <- data.frame(word1 = bigram$one,word2 = bigram$two,freq = bigram$freq,stringsAsFactors=FALSE)
+
+## Saving
+save(bigram, file = "bigram.RData")
+```
+
+### Trigrams
+```{r trigram, cache=TRUE, warning=FALSE}
+trigram <- NGramTokenizer(sample, Weka_control(min = 3, max = 3, delimiters = " \\r\\n\\t.,;:\"()?!"))
+trigram <- data.frame(table(trigram))
+trigram <- trigram %>% arrange(desc(Freq))
+names(trigram) <- c("words","frequency")
+head(trigram)
+trigram$words <- as.character(trigram$words)
+
+# Plotting
+wordcloud(trigram$words, trigram$frequency, max.words = 100, random.order = FALSE, colors = pal)
+
+ggplot(head(trigram,15), aes(reorder(words,frequency), frequency)) +
+  geom_bar(stat = "identity") + coord_flip() +
+  xlab("Trigrams") + ylab("Frequency") +
+  ggtitle("Most frequent Trigrams")
+
+str3 <- strsplit(trigram$words,split=" ")
+trigram <- transform(trigram,
+                     one = sapply(str3,"[[",1),
+                     two = sapply(str3,"[[",2),
+                     three = sapply(str3,"[[",3))
+# trigram$words <- NULL
+trigram <- data.frame(word1 = trigram$one,word2 = trigram$two, 
+                      word3 = trigram$three, freq = trigram$freq,stringsAsFactors=FALSE)
+# Saving
+save(trigram, file = "trigram.RData")
+```
+
+
+## Summary and prospects
+In conclusion, after performing the above analyses it is easy to see that several problems arise and will need to be tackled. The list below outlines them and the initial ideas on how to deal with them.
+
+* Constructing n-grams time consuming even for relatively small samples - optimise between % of words and sample size
+
+* Phrases input by the users in the final app will probably hardly be anything more than stopwords - another model with stopwords included and then boosting using the two models.
+
+* Words not appearing in the corpora - extract words appearing rarely in the corpora, treat them as almost equally improbable to appear as those not appearing, assign one particular 'word' to them and build *n-grams* basing on this assumption.
+
+* Raw *n-grams* tend to be bulky and inaccurate - pruning and smoothing (as decribed [here](https://www.cs.cornell.edu/courses/cs4740/2012sp/lectures/smoothing+backoff-1-4pp.pdf)).
+
+* Limited memory on the Shiny server - developing an efficient way to store n-gram models and predicting with them.
+
+Finally, after a moment of consideration, I decided to apply the following model construction pipeline:
+
+1. Split the corpora in the ratio 55:15:15:15, into training, test for smoothing, test for boosting and validation parts.
+
+2. Build models using the training data and choose optimal number of words in *n-grams* using cross-validation.
+
+3. Choose smoothing coefficients judging by predicion accuracy on the test for smoothing set.
+
+4. Choose boosting method judging by prediction accuracy on the test for boosting set.
+
+5. Report prediction accuracy on the validation set.

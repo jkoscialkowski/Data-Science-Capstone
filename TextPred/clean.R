@@ -2,12 +2,16 @@
 
 ## Requires the tm package to be loaded
 
-clean <- function(path) {
+clean <- function(textOrPath, isText = TRUE) {
     
+    if(!isText) {
     # Reading
-    textCon <- file(path, encoding = "UTF-8", open = "rb")
+    textCon <- file(textOrPath, encoding = "UTF-8", open = "rb")
     textCorpus <- readLines(textCon, skipNul = TRUE)
     textCorpus <- Corpus(VectorSource(textCorpus))
+    } else {
+        textCorpus <- Corpus(VectorSource(textOrPath))
+    }
     
     # Conversion of UTF-8 artifacts to ASCII
     textCorpus <- tm_map(textCorpus, content_transformer(function(x) iconv(x, to="ASCII", sub = "'")))
@@ -50,8 +54,10 @@ clean <- function(path) {
     # Removing whitespaces, important to put it at the end
     textCorpus <- tm_map(textCorpus, stripWhitespace)
     
+    if(!isText) {
     # Saving to file
-    save(textCorpus, file = gsub(pattern = "\\.txt", replacement = "_refined\\.RData", x = path))
+    save(textCorpus, file = gsub(pattern = "\\.txt", replacement = "_refined\\.RData", x = textOrPath))
+    }
     
     # Returning refined text
     textCorpus

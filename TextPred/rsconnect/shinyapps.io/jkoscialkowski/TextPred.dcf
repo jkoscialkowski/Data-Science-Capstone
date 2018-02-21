@@ -1,0 +1,12 @@
+name: TextPred
+title: TextPred
+username:
+account: jkoscialkowski
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 286194
+bundleId: 1233528
+url: https://jkoscialkowski.shinyapps.io/TextPred/
+when: 1519226071.29744
+asMultiple: FALSE
+asStatic: FALSE
